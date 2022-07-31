@@ -6,8 +6,14 @@ package cmd
 
 import (
 	"os"
+	"runtime"
+	"sort"
+	"strings"
+	"sync"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/mtrentz/similarity-cli/similarity"
 	"github.com/mtrentz/similarity-cli/utils"
@@ -26,30 +32,123 @@ to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
-		var mainStr string
+		// All treated as list, even if only one mainString
+		var mainStrings []string
 		var otherStrings []string
 
-		// Passes the main string normally as the first paramenter
-		utils.CheckForMinimumArgs(cmd, 2, args)
-		mainStr = args[0]
-		otherStrings = args[1:]
-
-		var similarities []similarity.Similarity
-
-		for _, str := range otherStrings {
-			sim := similarity.GetSimilarity(mainStr, str)
-			similarities = append(similarities, sim)
-			sim.Result()
+		// If File1 and File2 not provided, needed at least two arguments
+		if File1 == "" && File2 == "" {
+			utils.CheckForMinimumArgs(cmd, 2, args)
 		}
 
+		// If not File1, then mainString is the first argument
+		if File1 == "" {
+			mainStrings = append(mainStrings, args[0])
+		}
+
+		// If not File2, then otherStrings is the rest of the arguments
+		if File2 == "" {
+			otherStrings = append(otherStrings, args[1:]...)
+		}
+
+		// If f1 or f2 is provided, I have to read the list
+		// of strings from the file
+		if File1 != "" {
+			mainStrings = utils.ReadFromFile(File1)
+			// Check if longer than 1
+			utils.CheckForMinimumArgs(cmd, 1, mainStrings)
+		}
+		if File2 != "" {
+			otherStrings = utils.ReadFromFile(File2)
+			// Check if longer than 1
+			utils.CheckForMinimumArgs(cmd, 1, otherStrings)
+		}
+
+		var calculateSimilarity func(string, string) float64
+
+		// Decide on the metric to use if has a flag
+		if Metric != "" {
+			// Make sure Metric is all lower case
+			Metric = strings.ToLower(Metric)
+			calculateSimilarity = similarity.GetSimilarityFunc(Metric)
+		} else {
+			Metric = "Jaro"
+			calculateSimilarity = similarity.GetSimilarityFunc("jaro")
+		}
+
+		// Create a channel to guarantee max amount of goroutines
+		// equal to cpu cores
+		MAX_CPU_CORES := runtime.NumCPU()
+		waitChan := make(chan struct{}, MAX_CPU_CORES)
+
+		// Array to hold the results
+		var mu sync.Mutex
+		var similarities []similarity.Similarity
+		var wg sync.WaitGroup
+
+		wg.Add(len(mainStrings) * len(otherStrings))
+
+		// Iterate over mainStrings and otherStrings
+		// to compare them.
+		for _, mainString := range mainStrings {
+			for _, otherString := range otherStrings {
+				// Try to write to the channel, if it is full,
+				// it will wait until it is free.
+				waitChan <- struct{}{}
+
+				// Now send a goroutine to calculate the similarity
+				go func(mainString string, otherString string) {
+					// Check if case insensitive
+					if Insensitive {
+						mainString = strings.ToLower(mainString)
+						otherString = strings.ToLower(otherString)
+					}
+
+					sim := calculateSimilarity(mainString, otherString)
+
+					// Lock the array and append the similarity
+					mu.Lock()
+					similarities = append(similarities, similarity.Similarity{
+						Metric: cases.Title(language.Und, cases.NoLower).String(Metric),
+						S1:     mainString,
+						S2:     otherString,
+						Score:  sim,
+					})
+					mu.Unlock()
+					wg.Done()
+
+					// Unlock the channel
+					<-waitChan
+				}(mainString, otherString)
+			}
+		}
+
+		wg.Wait()
+
+		// Sort the slice by s1
+		// if is not longer than 100k
+		if len(similarities) < 100000 {
+			sort.Slice(similarities, func(i, j int) bool {
+				return strings.ToLower(similarities[i].S1) < strings.ToLower(similarities[j].S1)
+			})
+		}
+
+		// fmt.Println(Silent)
+		// Print the results if not silent
+		if !Silent {
+			for _, similarity := range similarities {
+				similarity.Result()
+			}
+		}
+
+		// Now check if output is provided, if so,
+		// write the similarities to the file.
 		if Output != "" {
 			utils.WriteToFile(Output, similarities)
 		}
 	},
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
@@ -57,22 +156,18 @@ func Execute() {
 	}
 }
 
+var Insensitive bool
 var File1 string
 var File2 string
 var Output string
+var Metric string
+var Silent bool
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.similarity-cli.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-
+	rootCmd.Flags().BoolVarP(&Insensitive, "insensitive", "i", false, "Use case insensitive comparison")
 	rootCmd.Flags().StringVarP(&File1, "f1", "", "", "Path to input file containing many s1, to be compared against all other s2. This can be a .txt file separated by newlines, or a JSON list of strings.")
 	rootCmd.Flags().StringVarP(&File2, "f2", "", "", "Path to input file containing many s2, to be compared against s1, many s1 in case f1 was provided. This can be a .txt file separated by newlines, or a JSON list of strings.")
 	rootCmd.Flags().StringVarP(&Output, "out", "o", "", "Path to output file. If not provided, output will be printed to stdout.")
+	rootCmd.Flags().StringVarP(&Metric, "metric", "m", "", "Metric used to compare strings. Defaults to Jaro. Available: Jaro, Levenshtein, DamerauLevenshtein, Hamming.")
+	rootCmd.Flags().BoolVarP(&Silent, "silent", "s", false, "If provided, will not print the results to stdout.")
 }
