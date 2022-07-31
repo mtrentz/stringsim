@@ -29,17 +29,10 @@ to quickly create a Cobra application.`,
 		var mainStr string
 		var otherStrings []string
 
-		if S1 != "" {
-			// Passes the main string separately from the flag
-			utils.CheckForMinimumArgs(cmd, 1, args)
-			mainStr = S1
-			otherStrings = args
-		} else {
-			// Passes the main string normally as the first paramenter
-			utils.CheckForMinimumArgs(cmd, 2, args)
-			mainStr = args[0]
-			otherStrings = args[1:]
-		}
+		// Passes the main string normally as the first paramenter
+		utils.CheckForMinimumArgs(cmd, 2, args)
+		mainStr = args[0]
+		otherStrings = args[1:]
 
 		var similarities []similarity.Similarity
 
@@ -64,7 +57,6 @@ func Execute() {
 	}
 }
 
-var S1 string
 var File1 string
 var File2 string
 var Output string
@@ -80,7 +72,6 @@ func init() {
 	// when this action is called directly.
 	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
-	rootCmd.Flags().StringVarP(&S1, "s1", "", "", "String1, to be compared against all other s2.")
 	rootCmd.Flags().StringVarP(&File1, "f1", "", "", "Path to input file containing many s1, to be compared against all other s2. This can be a .txt file separated by newlines, or a JSON list of strings.")
 	rootCmd.Flags().StringVarP(&File2, "f2", "", "", "Path to input file containing many s2, to be compared against s1, many s1 in case f1 was provided. This can be a .txt file separated by newlines, or a JSON list of strings.")
 	rootCmd.Flags().StringVarP(&Output, "out", "o", "", "Path to output file. If not provided, output will be printed to stdout.")
