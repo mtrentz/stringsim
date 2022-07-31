@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mtrentz/similarity-cli/similarity"
+	"github.com/mtrentz/stringsim/similarity"
 	"github.com/spf13/cobra"
 )
 
