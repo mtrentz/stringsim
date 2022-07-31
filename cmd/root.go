@@ -5,22 +5,13 @@ Copyright © 2022 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"fmt"
 	"os"
 
-	"github.com/antzucaro/matchr"
 	"github.com/spf13/cobra"
-)
 
-// Check for a minimum amount of arguments, if not enough,
-// prints help page, error and exits.
-func checkForMinimumArgs(cmd *cobra.Command, n int, args []string) {
-	if len(args) < n {
-		cmd.Usage()
-		fmt.Printf("Expected %d arguments, got %d.\n", n, len(args))
-		os.Exit(1)
-	}
-}
+	"github.com/mtrentz/similarity-cli/similarity"
+	"github.com/mtrentz/similarity-cli/utils"
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -38,22 +29,28 @@ to quickly create a Cobra application.`,
 		var mainStr string
 		var otherStrings []string
 
-		if Target != "" {
+		if S1 != "" {
 			// Passes the main string separately from the flag
-			checkForMinimumArgs(cmd, 1, args)
-
-			mainStr = Target
+			utils.CheckForMinimumArgs(cmd, 1, args)
+			mainStr = S1
 			otherStrings = args
 		} else {
 			// Passes the main string normally as the first paramenter
-			checkForMinimumArgs(cmd, 2, args)
-
+			utils.CheckForMinimumArgs(cmd, 2, args)
 			mainStr = args[0]
 			otherStrings = args[1:]
 		}
 
+		var similarities []similarity.Similarity
+
 		for _, str := range otherStrings {
-			fmt.Printf("Similarity between %s and %s: %.4f\n", mainStr, str, matchr.Jaro(mainStr, str))
+			sim := similarity.GetSimilarity(mainStr, str)
+			similarities = append(similarities, sim)
+			sim.Result()
+		}
+
+		if Output != "" {
+			utils.WriteToFile(Output, similarities)
 		}
 	},
 }
@@ -67,7 +64,10 @@ func Execute() {
 	}
 }
 
-var Target string
+var S1 string
+var File1 string
+var File2 string
+var Output string
 
 func init() {
 	// Here you will define your flags and configuration settings.
@@ -80,5 +80,8 @@ func init() {
 	// when this action is called directly.
 	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
-	rootCmd.Flags().StringVarP(&Target, "target", "t", "", "Target string to compare against")
+	rootCmd.Flags().StringVarP(&S1, "s1", "", "", "String1, to be compared against all other s2.")
+	rootCmd.Flags().StringVarP(&File1, "f1", "", "", "Path to input file containing many s1, to be compared against all other s2. This can be a .txt file separated by newlines, or a JSON list of strings.")
+	rootCmd.Flags().StringVarP(&File2, "f2", "", "", "Path to input file containing many s2, to be compared against s1, many s1 in case f1 was provided. This can be a .txt file separated by newlines, or a JSON list of strings.")
+	rootCmd.Flags().StringVarP(&Output, "out", "o", "", "Path to output file. If not provided, output will be printed to stdout.")
 }

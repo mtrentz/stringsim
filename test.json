@@ -1,0 +1,14 @@
+[
+  {
+    "metric": "Jaro",
+    "s1": "Mateus",
+    "s2": "Matheus",
+    "score": 0.9523809523809524
+  },
+  {
+    "metric": "Jaro",
+    "s1": "Mateus",
+    "s2": "Matthews",
+    "score": 0.8194444444444445
+  }
+]
