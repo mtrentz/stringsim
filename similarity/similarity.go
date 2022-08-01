@@ -78,6 +78,7 @@ func NormalFlow(mainStrings []string, otherStrings []string, StringFlags map[str
 	// Create a channel to guarantee max amount of goroutines
 	// equal to cpu cores
 	MAX_CPU_CORES := runtime.NumCPU()
+	fmt.Println("Max cpu cores:", MAX_CPU_CORES)
 	waitChan := make(chan struct{}, MAX_CPU_CORES)
 
 	var similarities []Similarity
