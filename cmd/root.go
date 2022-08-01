@@ -95,7 +95,8 @@ Reading many words from a json file (formated as array of strings ["a", "b", ...
 		var similarities []similarity.Similarity
 		var wg sync.WaitGroup
 
-		wg.Add(len(mainStrings) * len(otherStrings))
+		amountComputations := len(mainStrings) * len(otherStrings)
+		wg.Add(amountComputations)
 
 		// Iterate over mainStrings and otherStrings
 		// to compare them.
@@ -142,12 +143,17 @@ Reading many words from a json file (formated as array of strings ["a", "b", ...
 			})
 		}
 
-		// fmt.Println(Silent)
-		// Print the results if not silent
-		if !Silent {
-			for _, similarity := range similarities {
-				similarity.Result()
+		// First check if not more than 10k computations
+		if amountComputations < 10000 {
+			// Now check if its not set to silent
+			if !Silent {
+				// If not, print the results
+				for _, similarity := range similarities {
+					similarity.Result()
+				}
 			}
+		} else if !Silent {
+			fmt.Println("Too many similarities, not printing results")
 		}
 
 		// Now check if output is provided, if so,
