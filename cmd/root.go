@@ -72,7 +72,7 @@ Reading many words from a json file (formated as array of strings ["a", "b", ...
 		// Set a threshold for too many computations. If more than this,
 		// i'll write to output without holding in memory
 		// and will not print anything to stdout
-		threshold := 100000000
+		threshold := 100000
 		tooManyComputations := amountComputations > threshold
 
 		if tooManyComputations && Output == "" {
