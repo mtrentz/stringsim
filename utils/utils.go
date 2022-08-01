@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mtrentz/stringsim/similarity"
 	"github.com/spf13/cobra"
 )
 
@@ -21,41 +20,17 @@ func CheckForMinimumArgs(cmd *cobra.Command, n int, args []string) {
 	}
 }
 
-// Writes a list of similarities to a json file as a list.
-func WriteToFile(filename string, similarities []similarity.Similarity) {
-	// Check if extension is already .json, else add it
-	if ext := filepath.Ext(filename); ext != ".json" {
-		filename = filename + ".json"
-	}
-
-	// Create file
-	file, err := os.Create(filename)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	j, err := json.MarshalIndent(similarities, "", "  ")
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	// Write to file
-	file.Write(j)
-}
-
 // Reads strings from a txt file separated by newline
 // or a json file as an array of strings.
 func ReadFromFile(filename string) []string {
 	// Read from txt file
 	if ext := filepath.Ext(filename); ext == ".txt" {
-		return ReadFromTxtFile(filename)
+		return readFromTxtFile(filename)
 	}
 
 	// Read from json file
 	if ext := filepath.Ext(filename); ext == ".json" {
-		return ReadFromJsonFile(filename)
+		return readFromJsonFile(filename)
 	}
 
 	// If file extension not txt or json
@@ -66,7 +41,7 @@ func ReadFromFile(filename string) []string {
 }
 
 // Reads all lines from a txt file and returns them as a list.
-func ReadFromTxtFile(filename string) []string {
+func readFromTxtFile(filename string) []string {
 	// Open file
 	file, err := os.Open(filename)
 	if err != nil {
@@ -88,7 +63,7 @@ func ReadFromTxtFile(filename string) []string {
 }
 
 // Read from a json file that is a list of strings and returns them as a list.
-func ReadFromJsonFile(filename string) []string {
+func readFromJsonFile(filename string) []string {
 	// Expecting a json file with a top level list of only strings
 	var arr []string
 

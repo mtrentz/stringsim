@@ -7,14 +7,8 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"runtime"
-	"sort"
-	"strings"
-	"sync"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 
 	"github.com/mtrentz/stringsim/similarity"
 	"github.com/mtrentz/stringsim/utils"
@@ -73,93 +67,38 @@ Reading many words from a json file (formated as array of strings ["a", "b", ...
 			utils.CheckForMinimumArgs(cmd, 1, otherStrings)
 		}
 
-		var calculateSimilarity func(string, string) float64
-
-		// Decide on the metric to use if has a flag
-		if Metric != "" {
-			// Make sure Metric is all lower case
-			Metric = strings.ToLower(Metric)
-			calculateSimilarity = similarity.GetSimilarityFunc(Metric)
-		} else {
-			Metric = "Jaro"
-			calculateSimilarity = similarity.GetSimilarityFunc("jaro")
-		}
-
-		// Create a channel to guarantee max amount of goroutines
-		// equal to cpu cores
-		MAX_CPU_CORES := runtime.NumCPU()
-		waitChan := make(chan struct{}, MAX_CPU_CORES)
-
-		// Array to hold the results
-		var mu sync.Mutex
-		var similarities []similarity.Similarity
-		var wg sync.WaitGroup
-
 		amountComputations := len(mainStrings) * len(otherStrings)
-		wg.Add(amountComputations)
 
-		// Iterate over mainStrings and otherStrings
-		// to compare them.
-		for _, mainString := range mainStrings {
-			for _, otherString := range otherStrings {
-				// Try to write to the channel, if it is full,
-				// it will wait until it is free.
-				waitChan <- struct{}{}
+		// Set a threshold for too many computations. If more than this,
+		// i'll write to output without holding in memory
+		// and will not print anything to stdout
+		threshold := 100000
+		tooManyComputations := amountComputations > threshold
 
-				// Now send a goroutine to calculate the similarity
-				go func(mainString string, otherString string) {
-					// Check if case insensitive
-					if Insensitive {
-						mainString = strings.ToLower(mainString)
-						otherString = strings.ToLower(otherString)
-					}
-
-					sim := calculateSimilarity(mainString, otherString)
-
-					// Lock the array and append the similarity
-					mu.Lock()
-					similarities = append(similarities, similarity.Similarity{
-						Metric: cases.Title(language.Und, cases.NoLower).String(Metric),
-						S1:     mainString,
-						S2:     otherString,
-						Score:  sim,
-					})
-					mu.Unlock()
-					wg.Done()
-
-					// Unlock the channel
-					<-waitChan
-				}(mainString, otherString)
-			}
+		if tooManyComputations && Output == "" {
+			fmt.Printf("Too many similarities to comput and print to screen. Please use -o to output to file.\n")
+			os.Exit(1)
 		}
 
-		wg.Wait()
-
-		// Sort the slice by s1
-		// if is not longer than 100k
-		if len(similarities) < 100000 {
-			sort.Slice(similarities, func(i, j int) bool {
-				return strings.ToLower(similarities[i].S1) < strings.ToLower(similarities[j].S1)
-			})
+		// Now depending on the amount of computations, I'll either
+		// send it to the 'NormalFlow' or the 'BigFileFlow'.
+		// For that, I'll first need a map with the flags to pass
+		// to them.
+		stringFlags := map[string]string{
+			"File1":  File1,
+			"File2":  File2,
+			"Output": Output,
+			"Metric": Metric,
+		}
+		boolFlags := map[string]bool{
+			"Insensitive": Insensitive,
+			"Silent":      Silent,
 		}
 
-		// First check if not more than 10k computations
-		if amountComputations < 10000 {
-			// Now check if its not set to silent
-			if !Silent {
-				// If not, print the results
-				for _, similarity := range similarities {
-					similarity.Result()
-				}
-			}
-		} else if !Silent {
-			fmt.Println("Too many similarities, not printing results")
-		}
-
-		// Now check if output is provided, if so,
-		// write the similarities to the file.
-		if Output != "" {
-			utils.WriteToFile(Output, similarities)
+		if !tooManyComputations {
+			similarity.NormalFlow(mainStrings, otherStrings, stringFlags, boolFlags)
+		} else {
+			similarity.BigFileFlow(mainStrings, otherStrings, stringFlags, boolFlags)
 		}
 	},
 }
