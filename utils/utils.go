@@ -84,3 +84,31 @@ func readFromJsonFile(filename string) []string {
 
 	return arr
 }
+
+// Split slice into 'n' subslices as evenly as possible.
+func SliceSplit(slice []string, n int) [][]string {
+	// First create and slice with 'n' amount of slices
+	subSlices := make([][]string, n)
+	// Now loop over 'slice' and append each element into
+	// one slice until there is no more elements left.
+	sliceToAppend := 0
+	for {
+		if len(slice) == 0 {
+			break
+		}
+		subSlices[sliceToAppend] = append(subSlices[sliceToAppend], slice[0])
+		slice = slice[1:]
+		sliceToAppend++
+		if sliceToAppend == n {
+			sliceToAppend = 0
+		}
+	}
+	return subSlices
+}
+
+func Min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}

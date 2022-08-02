@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/antzucaro/matchr"
+	"github.com/mtrentz/stringsim/utils"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -60,7 +61,8 @@ func GetSimilarityFunc(metric string) func(string, string) float64 {
 
 // Flow for calculating the similarities, printing results and
 // exporting output when the amount of calculations is not too
-// high.
+// high. Output is sorted alphabetically, can be printed to stdout
+// and is written all at once to a file.
 func NormalFlow(mainStrings []string, otherStrings []string, StringFlags map[string]string, BoolFlags map[string]bool) {
 	// Getting the function based on the metric to use
 	var Metric string
@@ -75,52 +77,58 @@ func NormalFlow(mainStrings []string, otherStrings []string, StringFlags map[str
 	}
 	calculateSimilarity = GetSimilarityFunc(Metric)
 
-	// Create a channel to guarantee max amount of goroutines
-	// equal to cpu cores
-	MAX_CPU_CORES := runtime.NumCPU()
-	waitChan := make(chan struct{}, MAX_CPU_CORES)
-
 	var similarities []Similarity
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	// Amount of computations that will be made
-	wg.Add(len(mainStrings) * len(otherStrings))
+	// The task will be done concurrently
+	// where the amount of goroutines is the smaller of the
+	// number of CPUs and the length of otherStrings
+	MAX_CPU_CORES := runtime.NumCPU()
+	amountGoroutines := utils.Min(len(otherStrings), MAX_CPU_CORES)
 
-	for _, mainString := range mainStrings {
-		for _, otherString := range otherStrings {
-			// Try to write to the channel, if it is full,
-			// it will wait until it is free.
-			waitChan <- struct{}{}
+	// Now I'll take the otherStrings and split them into
+	// 'amountGoroutines' slices, as evenly as possible.
+	subSlices := utils.SliceSplit(otherStrings, amountGoroutines)
 
-			// Now send a goroutine to calculate the similarity
-			go func(mainString string, otherString string) {
-				// Check if case insensitive
-				if BoolFlags["Insensitive"] {
-					mainString = strings.ToLower(mainString)
-					otherString = strings.ToLower(otherString)
+	// Add the amount of goroutines to the wait group
+	wg.Add(amountGoroutines)
+
+	// Start the goroutines
+	// by looping over each subslice
+	for _, subSlice := range subSlices {
+		// Create a goroutine for each subslice
+		go func(subSlice []string) {
+			// Calculate the similarities for each subslice
+			for _, s1 := range mainStrings {
+				for _, s2 := range subSlice {
+					// Check if case insensitive
+					if BoolFlags["Insensitive"] {
+						s1 = strings.ToLower(s1)
+						s2 = strings.ToLower(s2)
+					}
+
+					// Calculate the similarity
+					score := calculateSimilarity(s1, s2)
+					// Create a new similarity object
+					similarity := Similarity{
+						Metric: cases.Title(language.Und, cases.NoLower).String(Metric),
+						S1:     s1,
+						S2:     s2,
+						Score:  score,
+					}
+					// Add the similarity to the slice
+					mu.Lock()
+					similarities = append(similarities, similarity)
+					mu.Unlock()
 				}
-
-				score := calculateSimilarity(mainString, otherString)
-				similarity := Similarity{
-					Metric: cases.Title(language.Und, cases.NoLower).String(Metric),
-					S1:     mainString,
-					S2:     otherString,
-					Score:  score,
-				}
-
-				// Lock the array and append the similarity
-				mu.Lock()
-				similarities = append(similarities, similarity)
-				mu.Unlock()
-				wg.Done()
-
-				// Unlock the channel
-				<-waitChan
-			}(mainString, otherString)
-		}
+			}
+			// Done with this goroutine
+			wg.Done()
+		}(subSlice)
 	}
 
+	// Wait for all goroutines to finish
 	wg.Wait()
 
 	// Sort the slice by s1
@@ -159,15 +167,21 @@ func BigFileFlow(mainStrings []string, otherStrings []string, StringFlags map[st
 	}
 	calculateSimilarity = GetSimilarityFunc(Metric)
 
-	// Create a channel to guarantee max amount of goroutines
-	// equal to cpu cores
-	MAX_CPU_CORES := runtime.NumCPU()
-	waitChan := make(chan struct{}, MAX_CPU_CORES)
-
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	wg.Add(len(mainStrings) * len(otherStrings))
+	// The task will be done concurrently
+	// where the amount of goroutines is the smaller of the
+	// number of CPUs and the length of otherStrings
+	MAX_CPU_CORES := runtime.NumCPU()
+	amountGoroutines := utils.Min(len(otherStrings), MAX_CPU_CORES)
+
+	// Now I'll take the otherStrings and split them into
+	// 'amountGoroutines' slices, as evenly as possible.
+	subSlices := utils.SliceSplit(otherStrings, amountGoroutines)
+
+	// Add the amount of goroutines to the wait group
+	wg.Add(amountGoroutines)
 
 	// Create a json file with an empty array
 	createEmptyJsonArrayFile(StringFlags["Output"])
@@ -187,44 +201,45 @@ func BigFileFlow(mainStrings []string, otherStrings []string, StringFlags map[st
 	// `,{"key":value}]`.
 	isEmpty := isEmptyList(file)
 
-	for _, mainString := range mainStrings {
-		for _, otherString := range otherStrings {
-			// Try to write to the channel, if it is full,
-			// it will wait until it is free.
-			waitChan <- struct{}{}
+	// Start the goroutines
+	// by looping over each subslice
+	for _, subSlice := range subSlices {
+		// Create a goroutine for each subslice
+		go func(subSlice []string) {
+			// Calculate the similarities for each subslice
+			for _, s1 := range mainStrings {
+				for _, s2 := range subSlice {
+					// Check if case insensitive
+					if BoolFlags["Insensitive"] {
+						s1 = strings.ToLower(s1)
+						s2 = strings.ToLower(s2)
+					}
 
-			// Now send a goroutine to calculate the similarity
-			go func(mainString string, otherString string) {
-				// Check if case insensitive
-				if BoolFlags["Insensitive"] {
-					mainString = strings.ToLower(mainString)
-					otherString = strings.ToLower(otherString)
+					// Calculate the similarity
+					score := calculateSimilarity(s1, s2)
+					// Create a new similarity object
+					similarity := Similarity{
+						Metric: cases.Title(language.Und, cases.NoLower).String(Metric),
+						S1:     s1,
+						S2:     s2,
+						Score:  score,
+					}
+					// Lock the array and append the similarity
+					mu.Lock()
+					appendToJsonArray(file, &similarity, isEmpty)
+					// After the first append, I'll set isEmpty to false
+					if isEmpty {
+						isEmpty = false
+					}
+					mu.Unlock()
 				}
-
-				score := calculateSimilarity(mainString, otherString)
-				similarity := Similarity{
-					Metric: cases.Title(language.Und, cases.NoLower).String(Metric),
-					S1:     mainString,
-					S2:     otherString,
-					Score:  score,
-				}
-
-				// Lock the array and append the similarity
-				mu.Lock()
-				appendToJsonArray(file, &similarity, isEmpty)
-				// After the first append, I'll set isEmpty to false
-				if isEmpty {
-					isEmpty = false
-				}
-				mu.Unlock()
-				wg.Done()
-
-				// Unlock the channel
-				<-waitChan
-			}(mainString, otherString)
-		}
+			}
+			// Done with this goroutine
+			wg.Done()
+		}(subSlice)
 	}
 
+	// Wait for all goroutines to finish
 	wg.Wait()
 
 }
