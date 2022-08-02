@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"text/tabwriter"
 
 	"github.com/antzucaro/matchr"
 	"github.com/mtrentz/stringsim/utils"
@@ -21,8 +22,13 @@ type Similarity struct {
 	Score  float64 `json:"score"`
 }
 
-func (s *Similarity) Result() {
-	fmt.Printf("Similarity between %s and %s using %s is %f\n", s.S1, s.S2, s.Metric, s.Score)
+func printResults(similarities []Similarity) {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(w, "Metric\tS1\tS2\tScore\n")
+	for _, similarity := range similarities {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%f\n", similarity.Metric, similarity.S1, similarity.S2, similarity.Score)
+	}
+	w.Flush()
 }
 
 // Func that receives the metric name and return a function that
@@ -138,9 +144,7 @@ func NormalFlow(mainStrings []string, otherStrings []string, StringFlags map[str
 
 	// Now check if its not set to silent to print results
 	if !BoolFlags["Silent"] {
-		for _, similarity := range similarities {
-			similarity.Result()
-		}
+		printResults(similarities)
 	}
 
 	// Check if output to write to file
