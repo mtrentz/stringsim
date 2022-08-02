@@ -35,36 +35,66 @@ Reading many words from a json file (formated as array of strings ["a", "b", ...
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
-		// All treated as list, even if only one mainString
+		// mainStrings containing the 's1's
+		// otherStrings containing the 's2's, ...
+		// All treated as a list since when using --f1 flag,
+		// you can provide more than one s1.
 		var mainStrings []string
 		var otherStrings []string
 
+		// FLAG LOGIC
+		// First check if nothing was provided, if so
+		// only print the usage message.
+		if len(args) == 0 && File1 == "" && File2 == "" {
+			cmd.Usage()
+			return
+		}
+
 		// If File1 and File2 not provided, needed at least two arguments
+		// will exit if not provided.
 		if File1 == "" && File2 == "" {
 			utils.CheckForMinimumArgs(cmd, 2, args)
 		}
 
-		// If not File1, then mainString is the first argument
-		if File1 == "" {
-			mainStrings = append(mainStrings, args[0])
-		}
-
-		// If not File2, then otherStrings is the rest of the arguments
-		if File2 == "" {
-			otherStrings = append(otherStrings, args[1:]...)
-		}
-
-		// If f1 or f2 is provided, I have to read the list
-		// of strings from the file
+		// If File1 was provided, I either need at least
+		// one argument (s2) or File2
 		if File1 != "" {
+			// Read 's1's from the file
 			mainStrings = utils.ReadFromFile(File1)
-			// Check if longer than 1
-			utils.CheckForMinimumArgs(cmd, 1, mainStrings)
-		}
-		if File2 != "" {
-			otherStrings = utils.ReadFromFile(File2)
-			// Check if longer than 1
-			utils.CheckForMinimumArgs(cmd, 1, otherStrings)
+
+			// Check if File2 was provided
+			if File2 != "" {
+				// Read 's2's from the file
+				otherStrings = utils.ReadFromFile(File2)
+			} else {
+				// If File2 was not provided,
+				// then only one argument (s2) needs to be provided
+				utils.CheckForMinimumArgs(cmd, 1, mainStrings)
+				// Read all 's2's from the arguments
+				otherStrings = args
+			}
+		} else {
+			// If File1 was not provided, I need to check for
+			// File2
+			if File2 != "" {
+				// If File2 was provided, I need at least one argument
+				// to be the s1.
+				utils.CheckForMinimumArgs(cmd, 1, args)
+
+				// I'll read 's2's from file
+				otherStrings = utils.ReadFromFile(File2)
+				// And 's1's from the arguments
+				mainStrings = args
+			} else {
+				// If File1 and File2 were not provided,
+				// I need at least two arguments
+				utils.CheckForMinimumArgs(cmd, 2, args)
+
+				// s1 will be the first
+				mainStrings = []string{args[0]}
+				// s2 will be the rest
+				otherStrings = args[1:]
+			}
 		}
 
 		amountComputations := len(mainStrings) * len(otherStrings)
