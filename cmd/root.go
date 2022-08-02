@@ -7,6 +7,9 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -49,19 +52,25 @@ Reading many words from a json file (formated as array of strings ["a", "b", ...
 			cmd.Usage()
 			return
 		}
-
-		// If File1 and File2 not provided, needed at least two arguments
-		// will exit if not provided.
-		if File1 == "" && File2 == "" {
-			utils.CheckForMinimumArgs(cmd, 2, args)
+		// Quickly check if any input was provided its either
+		// a txt file or a json extension
+		if File1 != "" {
+			if ext := filepath.Ext(File1); ext != ".json" && ext != ".txt" {
+				fmt.Println("File1 extension not .json or .txt")
+				os.Exit(1)
+			}
 		}
-
+		if File2 != "" {
+			if ext := filepath.Ext(File2); ext != ".json" && ext != ".txt" {
+				fmt.Println("File2 extension not .json or .txt")
+				os.Exit(1)
+			}
+		}
 		// If File1 was provided, I either need at least
 		// one argument (s2) or File2
 		if File1 != "" {
 			// Read 's1's from the file
 			mainStrings = utils.ReadFromFile(File1)
-
 			// Check if File2 was provided
 			if File2 != "" {
 				// Read 's2's from the file
@@ -80,7 +89,6 @@ Reading many words from a json file (formated as array of strings ["a", "b", ...
 				// If File2 was provided, I need at least one argument
 				// to be the s1.
 				utils.CheckForMinimumArgs(cmd, 1, args)
-
 				// I'll read 's2's from file
 				otherStrings = utils.ReadFromFile(File2)
 				// And 's1's from the arguments
@@ -89,46 +97,86 @@ Reading many words from a json file (formated as array of strings ["a", "b", ...
 				// If File1 and File2 were not provided,
 				// I need at least two arguments
 				utils.CheckForMinimumArgs(cmd, 2, args)
-
 				// s1 will be the first
 				mainStrings = []string{args[0]}
 				// s2 will be the rest
 				otherStrings = args[1:]
 			}
 		}
+		// Check if output is either a .json or .csv
+		if Output != "" {
+			if ext := filepath.Ext(Output); ext != ".json" && ext != ".csv" {
+				fmt.Println("Output file extension not .json or .csv")
+				os.Exit(1)
+			}
+		}
+
+		// Case insensitive and unidecode flags
+		if Insensitive {
+			utils.SliceToLower(&mainStrings)
+			utils.SliceToLower(&otherStrings)
+		}
+		if Unidecode {
+			utils.SliceToUnidecode(&mainStrings)
+			utils.SliceToUnidecode(&otherStrings)
+		}
+
+		// metric logic
+		var metric string
+		// Decide on the metric to use if has a flag
+		if metric != "" {
+			// Make sure Metric is all lower case
+			metric = strings.ToLower(metric)
+		} else {
+			metric = "jaro"
+		}
+
+		// The task will be done concurrently
+		// where the amount of goroutines is the smaller of the
+		// number of CPUs and the length of otherStrings
+		MAX_CPU_CORES := runtime.NumCPU()
+		amountGoroutines := utils.Min(len(otherStrings), MAX_CPU_CORES)
+
+		// Now I'll take the otherStrings and split them into
+		// 'amountGoroutines' slices, as evenly as possible.
+		// The logic is that each goroutine will get one of these sub slices
+		// and for each element will calculate the similarity
+		// against the all the mainStrings.
+		otherStringsSubSlices := utils.SliceSplit(otherStrings, amountGoroutines)
 
 		amountComputations := len(mainStrings) * len(otherStrings)
 
-		// Set a threshold for too many computations. If more than this,
-		// i'll write to output without holding in memory
-		// and will not print anything to stdout
+		// Set a threshold for too many computations. If it's too high,
+		// I'll have a separate flow, which will not hold too much
+		// into memory and will be apending to the output file instead
 		threshold := 100000
 		tooManyComputations := amountComputations > threshold
 
+		// Won't print to screen if too many computations
 		if tooManyComputations && Output == "" {
 			fmt.Printf("Too many similarities to comput and print to screen. Please use -o to output to file.\n")
 			os.Exit(1)
 		}
 
-		// Now depending on the amount of computations, I'll either
-		// send it to the 'NormalFlow' or the 'BigFileFlow'.
-		// For that, I'll first need a map with the flags to pass
-		// to them.
+		// I'll pass the flags as a map to the "flows"
+		// if anything needs to be accesed.
 		stringFlags := map[string]string{
 			"File1":  File1,
 			"File2":  File2,
 			"Output": Output,
-			"Metric": Metric,
+			"Metric": metric,
 		}
 		boolFlags := map[string]bool{
 			"Insensitive": Insensitive,
 			"Silent":      Silent,
+			"Unidecode":   Unidecode,
 		}
 
+		// Send them to the proper flow
 		if !tooManyComputations {
-			similarity.NormalFlow(mainStrings, otherStrings, stringFlags, boolFlags)
+			similarity.NormalFlow(mainStrings, otherStringsSubSlices, metric, amountGoroutines, stringFlags, boolFlags)
 		} else {
-			similarity.BigFileFlow(mainStrings, otherStrings, stringFlags, boolFlags)
+			similarity.BigFileFlow(mainStrings, otherStringsSubSlices, metric, amountGoroutines, stringFlags, boolFlags)
 		}
 	},
 }
@@ -142,6 +190,7 @@ func Execute() {
 }
 
 var Insensitive bool
+var Unidecode bool
 var File1 string
 var File2 string
 var Output string
@@ -155,4 +204,5 @@ func init() {
 	rootCmd.Flags().StringVarP(&Output, "out", "o", "", "Path to output file. If not provided, output will be printed to stdout")
 	rootCmd.Flags().StringVarP(&Metric, "metric", "m", "", "Metric used to compare strings. Defaults to Jaro. Available: Jaro, Levenshtein, DamerauLevenshtein, Hamming")
 	rootCmd.Flags().BoolVarP(&Silent, "silent", "s", false, "If provided, will not print the results to stdout")
+	rootCmd.Flags().BoolVarP(&Unidecode, "unidecode", "u", false, "If provided, will use unidecode to get ASCII transliterations of Unicode text")
 }

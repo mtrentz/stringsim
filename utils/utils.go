@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/mozillazg/go-unidecode"
 	"github.com/spf13/cobra"
 )
 
@@ -111,4 +113,17 @@ func Min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// Pass all strings in a slice of strings to lower case
+func SliceToLower(slice *[]string) {
+	for i, s := range *slice {
+		(*slice)[i] = strings.ToLower(s)
+	}
+}
+
+func SliceToUnidecode(slice *[]string) {
+	for i, s := range *slice {
+		(*slice)[i] = unidecode.Unidecode(s)
+	}
 }
