@@ -6,7 +6,6 @@ require (
 	github.com/antzucaro/matchr v0.0.0-20210222213004-b04723ef80f0
 	github.com/mozillazg/go-unidecode v0.1.1
 	github.com/spf13/cobra v1.5.0
-	golang.org/x/text v0.3.7
 )
 
 require (

@@ -121,14 +121,13 @@ Reading many words from a json file (formated as array of strings ["a", "b", ...
 			utils.SliceToUnidecode(&otherStrings)
 		}
 
-		// metric logic
-		var metric string
+		// Metric logic
 		// Decide on the metric to use if has a flag
-		if metric != "" {
+		if Metric != "" {
 			// Make sure Metric is all lower case
-			metric = strings.ToLower(metric)
+			Metric = strings.ToLower(Metric)
 		} else {
-			metric = "jaro"
+			Metric = "jaro"
 		}
 
 		// The task will be done concurrently
@@ -164,7 +163,7 @@ Reading many words from a json file (formated as array of strings ["a", "b", ...
 			"File1":  File1,
 			"File2":  File2,
 			"Output": Output,
-			"Metric": metric,
+			"Metric": Metric,
 		}
 		boolFlags := map[string]bool{
 			"Insensitive": Insensitive,
@@ -174,9 +173,9 @@ Reading many words from a json file (formated as array of strings ["a", "b", ...
 
 		// Send them to the proper flow
 		if !tooManyComputations {
-			similarity.NormalFlow(mainStrings, otherStringsSubSlices, metric, amountGoroutines, stringFlags, boolFlags)
+			similarity.NormalFlow(mainStrings, otherStringsSubSlices, Metric, amountGoroutines, stringFlags, boolFlags)
 		} else {
-			similarity.BigFileFlow(mainStrings, otherStringsSubSlices, metric, amountGoroutines, stringFlags, boolFlags)
+			similarity.BigFileFlow(mainStrings, otherStringsSubSlices, Metric, amountGoroutines, stringFlags, boolFlags)
 		}
 	},
 }
@@ -202,7 +201,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&File1, "f1", "", "", "Path to input file containing many s1, to be compared against all other s2. This can be a .txt file separated by newlines, or a JSON list of strings")
 	rootCmd.Flags().StringVarP(&File2, "f2", "", "", "Path to input file containing many s2, to be compared against s1, many s1 in case f1 was provided. This can be a .txt file separated by newlines, or a JSON list of strings")
 	rootCmd.Flags().StringVarP(&Output, "out", "o", "", "Path to output file. If not provided, output will be printed to stdout")
-	rootCmd.Flags().StringVarP(&Metric, "metric", "m", "", "Metric used to compare strings. Defaults to Jaro. Available: Jaro, Levenshtein, DamerauLevenshtein, Hamming")
+	rootCmd.Flags().StringVarP(&Metric, "metric", "m", "", "Metric used to compare strings. Defaults to Jaro. Available: Jaro, Levenshtein, LevenshteinRatio, DamerauLevenshtein, Hamming, LongestCommonSubsequence (LCS)")
 	rootCmd.Flags().BoolVarP(&Silent, "silent", "s", false, "If provided, will not print the results to stdout")
 	rootCmd.Flags().BoolVarP(&Unidecode, "unidecode", "u", false, "If provided, will use unidecode to get ASCII transliterations of Unicode text")
 }

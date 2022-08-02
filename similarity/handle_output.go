@@ -6,7 +6,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"text/tabwriter"
 )
+
+func printResults(similarities []Similarity) {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(w, "metric\ts1\ts2\tscore\n")
+	for _, similarity := range similarities {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%f\n", similarity.Metric, similarity.S1, similarity.S2, similarity.Score)
+	}
+	w.Flush()
+}
 
 // Detect if output is to json or csv, write it all at once,
 // which works for the smaller files that everything is hold in memory.
