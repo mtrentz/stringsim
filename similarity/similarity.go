@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 	"sync"
 	"text/tabwriter"
 
@@ -108,9 +107,9 @@ func NormalFlow(mainStrings []string, subSlices [][]string, metric string, amoun
 	// Wait for all goroutines to finish
 	wg.Wait()
 
-	// Sort the slice by s1, alphabetically
+	// Sort the slice by score
 	sort.Slice(similarities, func(i, j int) bool {
-		return strings.ToLower(similarities[i].S1) < strings.ToLower(similarities[j].S1)
+		return similarities[i].Score > similarities[j].Score
 	})
 
 	// Now check if its not set to silent to print results
