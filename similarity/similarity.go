@@ -146,7 +146,7 @@ func NormalFlow(mainStrings []string, otherStrings []string, StringFlags map[str
 	// Check if output to write to file
 	if StringFlags["Output"] != "" {
 		// Write to file
-		writeToJson(StringFlags["Output"], similarities)
+		writeToFile(StringFlags["Output"], similarities)
 	}
 }
 
@@ -183,8 +183,10 @@ func BigFileFlow(mainStrings []string, otherStrings []string, StringFlags map[st
 	// Add the amount of goroutines to the wait group
 	wg.Add(amountGoroutines)
 
-	// Create a json file with an empty array
-	createEmptyJsonArrayFile(StringFlags["Output"])
+	// Create a json file with an empty array or a csv file,
+	// depending on the extension. Will exit if the extension
+	// is not supported.
+	createEmptyFile(StringFlags["Output"])
 
 	// Open the file
 	file, err := os.OpenFile(StringFlags["Output"], os.O_RDWR, 0666)
@@ -193,9 +195,8 @@ func BigFileFlow(mainStrings []string, otherStrings []string, StringFlags map[st
 	}
 	defer file.Close()
 
-	// Here, the file will start as [] and I'll be appending
-	// each result to the file. I'll use a mutex to lock the file
-	// while appending.
+	// For a json output, the file will start as [] and I'll be appending
+	// each result to the file.
 	// It's important to note that the first time I'm appending
 	// I'll have to ommit a comma, since the normal apending is
 	// `,{"key":value}]`.
@@ -226,11 +227,15 @@ func BigFileFlow(mainStrings []string, otherStrings []string, StringFlags map[st
 					}
 					// Lock the array and append the similarity
 					mu.Lock()
-					appendToJsonArray(file, &similarity, isEmpty)
-					// After the first append, I'll set isEmpty to false
+					appendToFile(file, &similarity, isEmpty)
 					if isEmpty {
 						isEmpty = false
 					}
+					// appendToJsonArray(file, &similarity, isEmpty)
+					// // After the first append, I'll set isEmpty to false
+					// if isEmpty {
+					// 	isEmpty = false
+					// }
 					mu.Unlock()
 				}
 			}
