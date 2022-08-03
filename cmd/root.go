@@ -21,13 +21,13 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "stringsim <s1> <s2> [<s3> ...] [flags]",
 	Short: "Calculate the similarity between strings.",
-	Long: `Calculate the similarity between at least two strings.
+	Long: `Calculate the similarity between at least two strings. Accepts input from file and export your results to json or csv.
 
 Comparing s1 to s2
   stringsim adam adan
 
 Comparing s1 to s2 and s3, case insensitive, output result to file
-  stringsim adam adan Aden -i -o output.json
+  stringsim adam adan Aden -i -o output.csv
 
 Reading s2, s3, ..., from a txt file separated by newlines and comparing to 'adam' using Levenshtein as metric
   stringsim adam --f2 strings.txt -m Levenshtein
