@@ -35,7 +35,7 @@ func getSimilarityFunc(metric string) func(string, string) float64 {
 			// The ratio is the levenshtein distance divided by the
 			// length of the longer string
 			levenshteinDistance := float64(matchr.Levenshtein(s1, s2))
-			ratio := levenshteinDistance / math.Max(float64(len(s1)), float64(len(s2)))
+			ratio := 1 - levenshteinDistance/math.Max(float64(len(s1)), float64(len(s2)))
 			return ratio
 		}
 	case "dameraulevenshtein":
